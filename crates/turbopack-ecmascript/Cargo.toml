@@ -62,8 +62,8 @@ swc_core = { workspace = true, features = [
   version = "0.4"
 
 [dev-dependencies]
-criterion = { version = "0.3.5", features = ["async_tokio"] }
-rstest = "0.12.0"
+criterion = { version = "0.4.0", features = ["async_tokio"] }
+rstest = "0.16.0"
 turbo-tasks-memory = { path = "../turbo-tasks-memory" }
 turbo-tasks-testing = { path = "../turbo-tasks-testing" }
 

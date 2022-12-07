@@ -56,7 +56,7 @@ turbopack-cli-utils = { path = "../turbopack-cli-utils" }
 turbopack-core = { path = "../turbopack-core" }
 turbopack-dev-server = { path = "../turbopack-dev-server" }
 turbopack-node = { path = "../turbopack-node" }
-webbrowser = "0.7.1"
+webbrowser = "0.8.2"
 
 [dev-dependencies]
 chromiumoxide = { version = "0.4.0", features = [
@@ -78,7 +78,7 @@ turbopack-create-test-app = { path = "../turbopack-create-test-app" }
 url = "2.2.2"
 
 [target.'cfg(unix)'.dev-dependencies]
-nix = "0.25.0"
+nix = "0.26.1"
 
 [build-dependencies]
 turbo-tasks-build = { path = "../turbo-tasks-build" }

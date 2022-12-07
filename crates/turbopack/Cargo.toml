@@ -35,11 +35,11 @@ turbopack-static = { path = "../turbopack-static" }
 # turbo-tasks-rocksdb = { path = "../turbo-tasks-rocksdb", optional = true }
 
 [dev-dependencies]
-criterion = { version = "0.3.5", features = ["async_tokio"] }
+criterion = { version = "0.4.0", features = ["async_tokio"] }
 difference = "2.0"
 futures = "0.3.25"
-rstest = "0.12.0"
-rstest_reuse = "0.3.0"
+rstest = "0.16.0"
+rstest_reuse = "0.4.0"
 test-generator = "0.3.0"
 tokio = "1.21.2"
 turbo-malloc = { path = "../turbo-malloc" }
