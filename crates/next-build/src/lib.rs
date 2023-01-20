@@ -1,3 +1,7 @@
+#![feature(min_specialization)]
+
+mod turbo_tasks_viz;
+
 use std::{
     collections::HashSet, env::current_dir, net::SocketAddr, path::MAIN_SEPARATOR, sync::Arc,
 };
@@ -6,7 +10,8 @@ use anyhow::{anyhow, Result};
 use next_core::{
     create_app_source, create_page_source, create_web_entry_source, env::load_env,
     manifest::DevManifestContentSource, next_config::load_next_config,
-    next_image::NextImageContentSourceVc, source_map::NextSourceMapTraceContentSourceVc,
+    next_image::NextImageContentSourceVc, router_source::NextRouterContentSourceVc,
+    source_map::NextSourceMapTraceContentSourceVc,
 };
 use turbo_tasks::{RawVc, TransientInstance, TransientValue, TurboTasks, Value};
 use turbo_tasks_fs::{DiskFileSystemVc, FileSystemVc};
@@ -62,7 +67,7 @@ impl NextBuildBuilder {
         }
     }
 
-    pub async fn build(self) -> Result<()> {
+    pub async fn source(self) -> ContentSourceVc {
         let log_options = LogOptions {
             current_dir: current_dir().unwrap(),
             show_all: self.show_all,
@@ -79,8 +84,7 @@ impl NextBuildBuilder {
             console_ui.into(),
             self.browserslist_query,
             Arc::new(self.server_addr).into(),
-        );
-        Ok(())
+        )
     }
 }
 
@@ -92,7 +96,7 @@ pub enum EntryRequest {
 
 #[allow(clippy::too_many_arguments)]
 #[turbo_tasks::function]
-async fn source(
+pub async fn source(
     root_dir: String,
     project_dir: String,
     entry_requests: TransientInstance<Vec<EntryRequest>>,
@@ -164,6 +168,11 @@ async fn source(
         next_config,
         server_addr,
     );
+    let viz = turbo_tasks_viz::TurboTasksSource {
+        turbo_tasks: turbo_tasks.into(),
+    }
+    .cell()
+    .into();
     let static_source =
         StaticAssetsContentSourceVc::new(String::new(), project_path.join("public")).into();
     let manifest_source = DevManifestContentSource {
@@ -190,9 +199,11 @@ async fn source(
         CombinedContentSourceVc::new(vec![static_source, page_source]).into(),
     )
     .into();
+    let router_source = NextRouterContentSourceVc::new(main_source, execution_context).into();
     let source = RouterContentSource {
         routes: vec![
             ("__turbopack__/".to_string(), introspect),
+            ("__turbo_tasks__/".to_string(), viz),
             (
                 "__nextjs_original-stack-frame".to_string(),
                 source_map_trace,
@@ -201,7 +212,7 @@ async fn source(
             ("_next/image".to_string(), img_source),
             ("__turbopack_sourcemap__/".to_string(), source_maps),
         ],
-        fallback: main_source,
+        fallback: router_source,
     }
     .cell()
     .into();
