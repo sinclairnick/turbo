@@ -47,7 +47,10 @@ type RemoteCacheOptions struct {
 	Signature bool   `json:"signature,omitempty"`
 }
 
-type rawTask struct {
+// rawTaskWithDefaults exists to Marshal (i.e. turn a TaskDefinition into json).
+// We use this for printing ResolvedTaskConfiguration, because we _want_ to show
+// the user the default values for key they have not configured.
+type rawTaskWithDefaults struct {
 	Outputs    []string            `json:"outputs"`
 	Cache      *bool               `json:"cache"`
 	DependsOn  []string            `json:"dependsOn"`
@@ -55,6 +58,18 @@ type rawTask struct {
 	OutputMode util.TaskOutputMode `json:"outputMode"`
 	Env        []string            `json:"env"`
 	Persistent bool                `json:"persistent"`
+}
+
+// rawTask exists to Unmarshal from json. When fields are omitted, we _want_
+// them to be missing, so that we can distinguish missing from empty value.
+type rawTask struct {
+	Outputs    []string            `json:"outputs,omitempty"`
+	Cache      *bool               `json:"cache,omitempty"`
+	DependsOn  []string            `json:"dependsOn,omitempty"`
+	Inputs     []string            `json:"inputs,omitempty"`
+	OutputMode util.TaskOutputMode `json:"outputMode,omitempty"`
+	Env        []string            `json:"env,omitempty"`
+	Persistent bool                `json:"persistent,omitempty"`
 }
 
 // Pipeline is a struct for deserializing .pipeline in configFile
@@ -248,7 +263,8 @@ func (pc Pipeline) HasTask(task string) bool {
 	return false
 }
 
-// UnmarshalJSON deserializes JSON into a TaskDefinition
+// UnmarshalJSON deserializes a single task definition from
+// turbo.json into a TaskDefinition struct
 func (c *TaskDefinition) UnmarshalJSON(data []byte) error {
 	task := rawTask{}
 	if err := json.Unmarshal(data, &task); err != nil {
@@ -320,10 +336,10 @@ func (c *TaskDefinition) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON deserializes JSON into a TaskDefinition
+// MarshalJSON serializes TaskDefinition struct into json
 func (c *TaskDefinition) MarshalJSON() ([]byte, error) {
 	// Initialize with empty arrays, so we get empty arrays serialized into JSON
-	task := rawTask{
+	task := rawTaskWithDefaults{
 		Outputs:   []string{},
 		Inputs:    []string{},
 		Env:       []string{},
@@ -353,6 +369,7 @@ func (c *TaskDefinition) MarshalJSON() ([]byte, error) {
 	if len(c.TaskDependencies) > 0 {
 		task.DependsOn = append(task.DependsOn, c.TaskDependencies...)
 	}
+
 	for _, i := range c.TopologicalDependencies {
 		task.DependsOn = append(task.DependsOn, "^"+i)
 	}
@@ -368,7 +385,7 @@ func (c *TaskDefinition) MarshalJSON() ([]byte, error) {
 	return json.Marshal(task)
 }
 
-// UnmarshalJSON deserializes TurboJSON objects into struct
+// UnmarshalJSON deserializes the contents of turbo.json into a TurboJSON struct
 func (c *TurboJSON) UnmarshalJSON(data []byte) error {
 	raw := &rawTurboJSON{}
 	if err := json.Unmarshal(data, &raw); err != nil {
