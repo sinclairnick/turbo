@@ -27,7 +27,7 @@ use turbopack_ecmascript::{
     EcmascriptModuleAssetVc,
 };
 use turbopack_node::{
-    evaluate::{evaluate, JavaScriptValue},
+    evaluate::{evaluate, JavaScriptEvaluation, JavaScriptValue},
     execution_context::{ExecutionContext, ExecutionContextVc},
 };
 
@@ -476,16 +476,14 @@ pub async fn load_next_config(execution_context: ExecutionContextVc) -> Result<N
         /* debug */ false,
     )
     .await?;
-    match &*config_value {
+    let JavaScriptEvaluation::Single(config_value) = &*config_value else {
+        unimplemented!("streaming config");
+    };
+    Ok(match config_value {
         JavaScriptValue::Value(val) => {
             let next_config: NextConfig = serde_json::from_reader(val.read())?;
-            let next_config = next_config.cell();
-
-            Ok(next_config)
+            next_config.cell()
         }
-        JavaScriptValue::Error => Ok(NextConfig::default().cell()),
-        JavaScriptValue::Stream(_) => {
-            unimplemented!("Stream not supported now");
-        }
-    }
+        _ => NextConfig::default().cell(),
+    })
 }

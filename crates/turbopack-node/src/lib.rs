@@ -13,8 +13,6 @@ use indexmap::IndexSet;
 pub use node_entry::{
     NodeEntry, NodeEntryVc, NodeRenderingEntriesVc, NodeRenderingEntry, NodeRenderingEntryVc,
 };
-use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
 use turbo_tasks::{CompletionVc, CompletionsVc, TryJoinIterExt};
 use turbo_tasks_fs::{to_sys_path, File, FileContent, FileSystemPathVc};
 use turbopack_core::{
@@ -235,23 +233,7 @@ pub struct ResponseHeaders {
     pub headers: Vec<String>,
 }
 
-#[derive(Serialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-enum EvalJavaScriptOutgoingMessage<'a> {
-    #[serde(rename_all = "camelCase")]
-    Evaluate { args: Vec<&'a JsonValue> },
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-enum EvalJavaScriptIncomingMessage {
-    FileDependency { path: String },
-    BuildDependency { path: String },
-    DirDependency { path: String, glob: String },
-    JsonValue { data: String },
-    Error(StructuredError),
-}
-
+#[derive(Clone)]
 #[turbo_tasks::value(shared)]
 pub struct StructuredError {
     name: String,
