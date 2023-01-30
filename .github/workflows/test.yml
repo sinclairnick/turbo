@@ -82,13 +82,20 @@ jobs:
             !*.md
 
       - name: Go related changes
-        ## Warning: When we add Integration tests to this workflow
-        # we need to add shim/ directory to this as well
         id: go
         uses: technote-space/get-diff-action@v6
         with:
           PATTERNS: |
             cli/**
+
+      - name: Go E2E related changes
+        id: go_e2e
+        uses: technote-space/get-diff-action@v6
+        with:
+          PATTERNS: |
+            crates/turborepo*
+            crates/turbo-updater
+            Cargo.lock
 
       - name: Examples related changes
         id: examples
@@ -103,30 +110,20 @@ jobs:
             !**.md
             !**.mdx
 
-      - name: Node.js related changes
-        id: node
+      - name: Formatting related changes
+        id: format
         uses: technote-space/get-diff-action@v6
         with:
           PATTERNS: |
-            pnpm-lock.yaml
-            package.json
-            .eslint*
-            .prettier*
-            tsconfig*
-            crates/**/js/**
-            .github/**
-            docs/**
-            packages/**
-            docs/**
-            *.md
-            *.mdx
+            **/*.{yml,yaml,md,mdx,js,jsx,ts,tsx,json,toml,css}
 
     outputs:
       rust: ${{ steps.ci.outputs.diff != '' || steps.rust.outputs.diff != '' }}
       rust_bench: ${{ steps.ci.outputs.diff != '' || steps.rust_bench.outputs.diff != '' }}
       go: ${{ steps.ci.outputs.diff != '' || steps.go.outputs.diff != '' }}
+      go_e2e: ${{ steps.ci.outputs.diff != '' || steps.go.outputs.diff != '' || steps.go_e2e.outputs.diff != '' }}
       examples: ${{ steps.ci.outputs.diff != '' || steps.examples.outputs.diff != '' }}
-      node: ${{ steps.ci.outputs.diff != '' || steps.node.outputs.diff != '' }}
+      format: ${{ steps.ci.outputs.diff != '' || steps.format.outputs.diff != '' }}
       push: ${{ steps.ci.outputs.diff != '' || github.event_name == 'push' }}
       tag: ${{ steps.ci.outputs.diff != '' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/node-file-trace')) }}
       main_push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
@@ -188,7 +185,7 @@ jobs:
   go_integration:
     name: Go Integration Tests
     needs: determine_jobs
-    if: needs.determine_jobs.outputs.go == 'true'
+    if: needs.determine_jobs.outputs.go_e2e == 'true'
     timeout-minutes: 30
     runs-on: ${{ matrix.os.runner }}
     strategy:
@@ -213,6 +210,34 @@ jobs:
 
       - name: Integration Tests
         run: pnpm -- turbo run integration-tests --filter=cli
+
+  go_e2e:
+    name: Go E2E Tests
+    needs: determine_jobs
+    if: needs.determine_jobs.outputs.go_e2e == 'true'
+    timeout-minutes: 30
+    runs-on: ${{ matrix.os.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - name: ubuntu
+            runner: ubuntu-latest
+          - name: macos
+            runner: macos-latest
+          - name: windows
+            runner: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/build-debug-turborepo
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          target: ${{ matrix.os.name }}
+
+      - name: E2E Tests
+        # Turbo has already been built in previous step, no need to rebuild
+        run: pnpm -- turbo-prebuilt run e2e-prebuilt --filter=cli
+
   go_examples:
     name: Go Cli Examples
     needs: determine_jobs
@@ -854,11 +879,11 @@ jobs:
       - name: Collect integration test stat
         uses: ./.github/actions/next-integration-stat
 
-  node_lint:
-    name: Node.js linting
+  format_lint:
+    name: Formatting
     runs-on: ubuntu-latest
     needs: determine_jobs
-    if: needs.determine_jobs.outputs.node == 'true'
+    if: needs.determine_jobs.outputs.format == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -878,13 +903,14 @@ jobs:
       - go_lint
       - go_unit
       - go_examples
+      - go_e2e
       - rust_lint
       - rust_check
       - rust_test
       - rust_test_bench
       - rust_build_release
       - rust_bench
-      - node_lint
+      - format_lint
       # rust_bench_pr is not included
       # since we don't want block the result on that
     if: always()
@@ -895,7 +921,7 @@ jobs:
     steps:
       - name: Check cancellation
         id: cancelled
-        if: needs.rust_lint.result == 'cancelled' || needs.rust_check.result == 'cancelled' || needs.rust_test.result == 'cancelled' || needs.rust_test_bench.result == 'cancelled' || needs.rust_build_release.result == 'cancelled' || needs.node_lint.result == 'cancelled' || needs.rust_bench.result == 'cancelled'
+        if: needs.rust_lint.result == 'cancelled' || needs.rust_check.result == 'cancelled' || needs.rust_test.result == 'cancelled' || needs.rust_test_bench.result == 'cancelled' || needs.rust_build_release.result == 'cancelled' || needs.format_lint.result == 'cancelled' || needs.rust_bench.result == 'cancelled'
         run: echo "cancelled=true" >> $GITHUB_OUTPUT
 
       - name: Start summary
@@ -925,6 +951,12 @@ jobs:
         if: always() && needs.go_examples.result != 'success' && needs.go_examples.result != 'skipped'
         run: |
           echo "- Go Examples" >> failures.md
+          exit 1
+
+      - name: Go E2E failed
+        if: always() && needs.go_e2e.result != 'success' && needs.go_e2e.result != 'skipped'
+        run: |
+          echo "- Go E2E" >> failures.md
           exit 1
 
       - name: Rust Linting failed
@@ -963,10 +995,10 @@ jobs:
           echo "- Rust benchmarks" >> failures.md
           exit 1
 
-      - name: Node.js Linting failed
-        if: always() && needs.node_lint.result != 'success' && needs.node_lint.result != 'skipped'
+      - name: Formatting failed
+        if: always() && needs.format_lint.result != 'success' && needs.format_lint.result != 'skipped'
         run: |
-          echo "- Node.js lints" >> failures.md
+          echo "- Formatting" >> failures.md
           exit 1
 
       - name: Add failure prose text
@@ -1017,3 +1049,10 @@ jobs:
       - name: It's fine
         if: success() && steps.cancelled.outputs.cancelled != 'true'
         run: echo Ok
+
+  cleanup:
+    name: Cleanup
+    needs: [final]
+    if: always()
+    uses: ./.github/workflows/pr-clean-caches.yml
+    secrets: inherit
