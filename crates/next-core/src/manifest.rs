@@ -24,27 +24,44 @@ impl DevManifestContentSourceVc {
     #[turbo_tasks::function]
     async fn find_routes(self) -> Result<StringsVc> {
         let this = &*self.await?;
-        let mut queue = this.page_roots.clone();
-        let mut routes = IndexSet::new();
 
-        while let Some(content_source) = queue.pop() {
-            queue.extend(content_source.get_children().await?.iter());
+        let reducer = |&content_source| async move {
+            let more = content_source
+                .get_children()
+                .await?
+                .iter()
+                .map(reducer)
+                .try_join()
+                .await?;
 
             // TODO This shouldn't use casts but an public api instead
             if let Some(api_source) = NodeApiContentSourceVc::resolve_from(content_source).await? {
-                routes.insert(format!("/{}", api_source.get_pathname().await?));
-
-                continue;
+                return Ok((
+                    Some((format!("/{}", api_source.get_pathname().await?))),
+                    more,
+                ));
             }
 
             if let Some(page_source) =
                 NodeRenderContentSourceVc::resolve_from(content_source).await?
             {
-                routes.insert(format!("/{}", page_source.get_pathname().await?));
-
-                continue;
+                return Ok((
+                    Some((format!("/{}", page_source.get_pathname().await?))),
+                    more,
+                ));
             }
-        }
+
+            Ok((None, more))
+        };
+
+        let routes = this
+            .page_roots
+            .iter()
+            .map(reducer)
+            .try_join()
+            .await?
+            .into_iter()
+            .flat_map_tree_deep();
 
         routes.sort();
 
