@@ -1,56 +1,55 @@
-use std::future::{Future, IntoFuture};
+use std::vec::IntoIter;
 
-use anyhow::Result;
-use futures::{
-    future::{join_all, JoinAll},
-    FutureExt,
-};
-
-pub trait TreeIterExt<L, It>: Iterator
-where
-    It: Iterator<Item = Tree<L>>,
-{
+pub trait TreeIterExt<L>: Iterator {
+    type Output: Iterator<Item = L>;
     /// Flattens a tree structure into a single iterator of leaf nodes.
-    /// Tree is represented as a tuple of (Option<L>, Vec<Tree<L>>).
-    fn flat_map_tree_deep(self) -> FlatMapTreeDeep<L, It>;
+    /// Supported iterated types are: LeafFirstThenChildren.
+    fn flat_map_tree(self) -> Self::Output;
 }
 
-type Tree<L> = (Option<L>, Vec<Tree<L>>);
+/// Visits leafs first, and recursed into children afterwards.
+pub struct LeafFirstThenChildren<L>(pub Option<L>, pub Vec<LeafFirstThenChildren<L>>);
 
-impl<L, It> TreeIterExt for It
+impl<L, It> TreeIterExt<L> for It
 where
-    It: Iterator<Item = Tree<L>>,
+    It: Iterator<Item = LeafFirstThenChildren<L>>,
 {
-    fn flat_map_tree_deep(self) -> FlatMapTreeDeep {
-        FlatMapTreeDeep {
-            inner: self.flat_map(|(l, children)| {
-                std::iter::once(l).chain(children.into_iter().flat_map_tree_deep())
-            }),
+    type Output = FlatMapTree<L, It>;
+    fn flat_map_tree(self) -> Self::Output {
+        FlatMapTree {
+            it: self,
+            stack: Vec::new(),
         }
     }
 }
 
-struct FlatMapTreeDeep<L, It>
+pub struct FlatMapTree<L, It>
 where
-    It: Iterator<Item = Tree<L>>,
+    It: Iterator<Item = LeafFirstThenChildren<L>>,
 {
-    stack: Vec<It>,
+    it: It,
+    stack: Vec<IntoIter<LeafFirstThenChildren<L>>>,
 }
 
-impl<L, It> Iterator for FlatMapTreeDeep<L, It>
+impl<L, It> Iterator for FlatMapTree<L, It>
 where
-    It: Iterator<Item = Tree<L>>,
+    It: Iterator<Item = LeafFirstThenChildren<L>>,
 {
     type Item = L;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if let Some(current) = self.stack.pop() {
-                if let Some((leaf, children)) = current.next() {
-                    self.stack.extend(children.into_iter().rev());
+            if let Some(mut current) = self.stack.pop() {
+                if let Some(LeafFirstThenChildren(leaf, children)) = current.next() {
+                    self.stack.push(children.into_iter());
                     if let Some(l) = leaf {
                         return Some(l);
                     }
+                }
+            } else if let Some(LeafFirstThenChildren(leaf, children)) = self.it.next() {
+                self.stack.push(children.into_iter());
+                if let Some(l) = leaf {
+                    return Some(l);
                 }
             } else {
                 return None;

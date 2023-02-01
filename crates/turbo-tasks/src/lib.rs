@@ -58,6 +58,7 @@ mod state;
 mod task_input;
 mod timed_future;
 pub mod trace;
+mod tree_iter_ext;
 pub mod util;
 mod value;
 mod value_type;
@@ -82,6 +83,7 @@ pub use raw_vc::{CellId, CollectiblesFuture, RawVc, ReadRawVcFuture, ResolveType
 pub use read_ref::ReadRef;
 pub use state::State;
 pub use task_input::{FromTaskInput, SharedReference, SharedValue, TaskInput};
+pub use tree_iter_ext::{LeafFirstThenChildren, TreeIterExt};
 pub use turbo_tasks_macros::{function, value, value_impl, value_trait};
 pub use value::{TransientInstance, TransientValue, Value};
 pub use value_type::{
