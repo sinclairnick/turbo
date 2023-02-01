@@ -43,7 +43,7 @@ use turbopack_core::asset::AssetContent;
 use self::{
     source::{
         query::Query, ContentSourceContent, ContentSourceDataVary, ContentSourceResult,
-        ContentSourceResultVc, ContentSourceVc, ProxyResultReadRef,
+        ContentSourceResultVc, ContentSourceVc, HeaderListReadRef, ProxyResultReadRef,
     },
     update::{protocol::ResourceIdentifier, UpdateServer},
 };
@@ -105,7 +105,7 @@ enum GetFromSourceResult {
     Static {
         content: FileContentReadRef,
         status_code: u16,
-        headers: Vec<(String, String)>,
+        headers: HeaderListReadRef,
     },
     Rewrite(RewriteReadRef),
     HttpProxy(ProxyResultReadRef),
@@ -156,7 +156,7 @@ async fn get_from_source(
                             GetFromSourceResult::Static {
                                 content: file.await?,
                                 status_code: *status_code,
-                                headers: headers.await?.clone(),
+                                headers: headers.await?,
                             }
                         } else {
                             GetFromSourceResult::NotFound
