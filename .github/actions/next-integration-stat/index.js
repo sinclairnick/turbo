@@ -16132,7 +16132,7 @@
           jobs === null || jobs === void 0
             ? void 0
             : jobs.filter((job) =>
-                /Next\.js integration test \([^)]*\)$/.test(job.name)
+                /Next\.js integration test \([^)]*\) \([^)]*\)$/.test(job.name)
               );
         console.log(
           jobs === null || jobs === void 0 ? void 0 : jobs.map((j) => j.name)

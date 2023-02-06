@@ -242,7 +242,7 @@ async function getFailedJobResults(
 
   // Filter out next.js integration test jobs
   const integrationTestJobs = jobs?.filter((job) =>
-    /Next\.js integration test \([^)]*\)$/.test(job.name)
+    /Next\.js integration test \([^)]*\) \([^)]*\)$/.test(job.name)
   );
   console.log(jobs?.map((j) => j.name));
 
